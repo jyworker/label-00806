@@ -20,11 +20,20 @@ WORKDIR /app
 ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
+# 创建覆盖率数据目录
+RUN mkdir -p /app/jacoco
+
 # 从构建阶段复制 jar 包
 COPY --from=builder /app/target/*.jar app.jar
 
-# 暴露端口
-EXPOSE 8080
+# 从maven仓库复制JaCoCo agent
+COPY --from=builder /root/.m2/repository/org/jacoco/org.jacoco.agent/0.8.11/org.jacoco.agent-0.8.11-runtime.jar jacoco-agent.jar
 
-# 启动命令 - 添加JVM时区参数
-ENTRYPOINT ["java", "-Duser.timezone=Asia/Shanghai", "-jar", "app.jar"]
+# 暴露应用端口和JaCoCo dump端口
+EXPOSE 8080 6300
+
+# 启动命令 - 添加JVM时区参数和JaCoCo运行时覆盖率
+ENTRYPOINT ["java", \
+    "-Duser.timezone=Asia/Shanghai", \
+    "-javaagent:/app/jacoco-agent.jar=destfile=/app/jacoco/jacoco-runtime.exec,append=true,includes=com.fooddelivery.*,dumponexit=true,output=tcpserver,address=0.0.0.0,port=6300", \
+    "-jar", "app.jar"]
